@@ -3,9 +3,10 @@ import { IHttp, IRead } from '@rocket.chat/apps-engine/definition/accessors';
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export async function getGeminiChatResponse(prompt: string, http: IHttp, read: IRead): Promise<string> {
+    // Fetch the API key from Rocket.Chat app settings
     const apiKey = await read.getEnvironmentReader().getSettings().getValueById('gemini_api_key');
     if (!apiKey) {
-        throw new Error('Gemini API key not set');
+        throw new Error('Gemini API key not set in app settings');
     }
 
     const payload = {
