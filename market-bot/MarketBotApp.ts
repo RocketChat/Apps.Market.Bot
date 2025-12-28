@@ -24,6 +24,21 @@ export class MarketBotApp extends App {
         configuration: IConfigurationExtend,
         environmentRead: IEnvironmentRead
     ): Promise<void> {
+
+        await configuration.settings.provideSetting({
+            id: 'chart_theme',
+            type: SettingType.SELECT,
+            packageValue: 'dark',
+            required: true,
+            public: true,
+            i18nLabel: 'Chart Theme',
+            i18nDescription: 'Select the color theme for generated charts',
+            values: [
+                { key: 'light', i18nLabel: 'Light Mode' },
+                { key: 'dark', i18nLabel: 'Dark Mode' }
+            ],
+        });
+
         await configuration.slashCommands.provideSlashCommand(
             new FinanceChatCommand()
         );

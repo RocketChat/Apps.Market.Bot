@@ -15,6 +15,9 @@ import { GeminiService } from "../external/GeminiService";
 import { buildCryptoPrompt } from "../prompts/cryptoPrompt";
 import { buildStockPrompt } from "../prompts/stockPrompt";
 import { NotifierService } from "../service/NotifyUserService";
+import { ChartService } from "../external/ChartService"
+import { CoinGeckoService } from "../external/CoinGeckoService";
+import { AlphaVantageService } from "../external/AlphaVantage";
 
 export class FinanceChatCommand implements ISlashCommand {
     public command = "financechat";
@@ -33,6 +36,10 @@ export class FinanceChatCommand implements ISlashCommand {
     ): Promise<void> {
         const logger: ILogger | undefined = (this as any).logger;
         const llm = new GeminiService();
+
+        const themeSetting = await read.getEnvironmentReader().getSettings().getValueById('chart_theme');
+        const isDark = themeSetting !== 'light';
+
         try {
             const args: string[] = context.getArguments();
             if (!args || args.length === 0) {
@@ -65,6 +72,7 @@ export class FinanceChatCommand implements ISlashCommand {
             let prompt: string;
             let news: INewsArticle[] = [];
             let responseText: string;
+            let chartUrl: string = "";
 
             if (isSingleTicker) {
                 const ticker = tickers[0].toUpperCase();
@@ -97,6 +105,27 @@ export class FinanceChatCommand implements ISlashCommand {
                     return;
                 }
 
+                try {
+                    let historyData: { date: string, price: number }[] = [];
+
+                    if (marketData.isCrypto && marketData.sourceId) {
+                        historyData = await CoinGeckoService.getHistoricalData(marketData.sourceId, 30, http);
+                    } else if (!marketData.isCrypto) {
+                        historyData = await AlphaVantageService.getHistoricalData(ticker, http, read);
+                    }
+
+                    if (historyData.length > 0) {
+                        chartUrl = ChartService.getChartUrl(
+                            marketData.symbol || ticker,
+                            historyData,
+                            !!marketData.isCrypto,
+                            isDark
+                        );
+                    }
+                } catch (chartErr) {
+                    console.error("Failed to generate chart for FinanceChat:", chartErr);
+                }
+
                 if (marketData.isCrypto) {
                     prompt = buildCryptoPrompt(query, marketData as any, news);
                 } else {
@@ -120,10 +149,24 @@ export class FinanceChatCommand implements ISlashCommand {
                 responseText = await llm.getChatResponse(prompt, http, read);
             } catch (err) {
                 logger?.error?.(`LLMService error: ${err}`);
-                responseText =
-                    "⚠️ Sorry, I couldn't get a response from the AI service at this time.";
+                responseText = `⚠️ Debug Error: ${err.message || err}`;
             }
-            await NotifierService.notifyUser(modify, context, responseText);
+
+            if (chartUrl) {
+                const messageBuilder = modify.getCreator().startMessage()
+                    .setRoom(context.getRoom())
+                    .setSender(context.getSender())
+                    .setText(responseText)
+                    .addAttachment({
+                        imageUrl: chartUrl,
+                        title: { value: "30-Day Price Trend" },
+                    });
+
+                await modify.getNotifier().notifyUser(context.getSender(), messageBuilder.getMessage());
+            } else {
+                await NotifierService.notifyUser(modify, context, responseText);
+            }
+
         } catch (error: any) {
             logger?.error?.(
                 `Error in /financechat command: ${error?.message ?? error}`
@@ -131,8 +174,7 @@ export class FinanceChatCommand implements ISlashCommand {
             await NotifierService.notifyUser(
                 modify,
                 context,
-                `⚠️ Error executing command: ${
-                    error?.message ?? "Unknown error"
+                `⚠️ Error executing command: ${error?.message ?? "Unknown error"
                 }`
             );
         }

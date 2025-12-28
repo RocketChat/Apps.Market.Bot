@@ -19,6 +19,11 @@ export interface ITechnicalIndicators {
     rsi?: number;
 }
 
+export interface IHistoricalData {
+    date: string;
+    price: number;
+}
+
 // Helper function to fetch indicator values
 async function fetchIndicatorValue(
     http: IHttp,
@@ -132,5 +137,46 @@ export class AlphaVantageService {
         );
 
         return { sma50, sma200, rsi };
+    }
+
+    public static async getHistoricalData(
+        symbol: string,
+        http: IHttp,
+        read: IRead
+    ): Promise<IHistoricalData[]> {
+        const apiKey = await read
+            .getEnvironmentReader()
+            .getSettings()
+            .getValueById(ALPHA_VANTAGE_API_KEY_SETTING_ID);
+
+        if (!apiKey) {
+            throw new Error("Alpha Vantage API key is not set in app settings.");
+        }
+
+        const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(
+            symbol
+        )}&apikey=${apiKey}`;
+
+        const response = await http.get(url);
+
+        if (
+            response.statusCode !== 200 ||
+            !response.data ||
+            !response.data["Time Series (Daily)"]
+        ) {
+            return [];
+        }
+
+        const timeSeries = response.data["Time Series (Daily)"];
+
+        const sortedDates = Object.keys(timeSeries).sort((a, b) => {
+            return new Date(b).getTime() - new Date(a).getTime();
+        });
+        const recentDates = sortedDates.slice(0, 30);
+
+        return recentDates.reverse().map((date) => ({
+            date,
+            price: parseFloat(timeSeries[date]["4. close"]),
+        }));
     }
 }

@@ -28,6 +28,7 @@ export interface IMarketData {
     ath?: number;
     atl?: number;
     isCrypto?: boolean;
+    sourceId?: string;
 }
 
 export class MarketDataService {
@@ -57,11 +58,12 @@ export class MarketDataService {
                         ath: coinData.ath,
                         atl: coinData.atl,
                         isCrypto: true,
+                        sourceId: coinMatch.id,
                     };
                 }
             }
         } catch (e) {
-        
+
         }
 
         try {

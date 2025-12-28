@@ -5,7 +5,8 @@ export class NotifierService {
     static async notifyUser(
         modify: IModify,
         context: SlashCommandContext,
-        text: string
+        text: string,
+        imageUrl?: string
     ): Promise<void> {
         const sender = context.getSender();
         const room = context.getRoom();
@@ -16,6 +17,12 @@ export class NotifierService {
             .setText(text)
             .setRoom(room)
             .setSender(sender);
+
+        if (imageUrl) {
+            messageBuilder.addAttachment({
+                imageUrl: imageUrl,
+            });
+        }
 
         await modify
             .getNotifier()

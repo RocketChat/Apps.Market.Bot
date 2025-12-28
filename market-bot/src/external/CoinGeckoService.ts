@@ -45,4 +45,18 @@ export class CoinGeckoService {
             name: coin.name,
         }));
     }
+
+    static async getHistoricalData(coinId: string, days: number, http: IHttp): Promise<{ date: string; price: number }[]> {
+        const url = `${this.BASE_URL}/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=${days}&interval=daily`;
+        const response = await http.get(url);
+
+        if (!response.data || !response.data.prices || !Array.isArray(response.data.prices)) {
+            return [];
+        }
+
+        return response.data.prices.map((p: [number, number]) => ({
+            date: new Date(p[0]).toISOString().split('T')[0],
+            price: p[1]
+        }));
+    }
 }

@@ -10,6 +10,9 @@ import {
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { MarketDataService, IMarketData } from "../external/MarketDataService";
 import { NotifierService } from "../service/NotifyUserService";
+import { ChartService } from "../external/ChartService"
+import { CoinGeckoService } from "../external/CoinGeckoService";
+import { AlphaVantageService } from "../external/AlphaVantage";
 
 // Define formatting functions separately
 function formatCryptoMessage(marketData: IMarketData): string {
@@ -68,6 +71,11 @@ export class MarketUpdateCommand implements ISlashCommand {
             return;
         }
 
+        // 1. READ THE THEME SETTING
+        const themeSetting = await read.getEnvironmentReader().getSettings().getValueById('chart_theme');
+        const isDark = themeSetting !== 'light'; // Default to Dark if null/undefined
+
+        // 1. Fetch Current Market Data
         const marketData = (await MarketDataService.getMarketData(
             symbol,
             http,
@@ -75,15 +83,58 @@ export class MarketUpdateCommand implements ISlashCommand {
             true
         )) as IMarketData;
 
-        let message: string;
-        if (marketData && marketData.price) {
-            message = marketData.isCrypto
-                ? formatCryptoMessage(marketData)
-                : formatStockMessage(marketData);
-        } else {
-            message = `⚠️ Market data for ${symbol} is not available.`;
+        if (!marketData || !marketData.price) {
+            await NotifierService.notifyUser(modify, context, `⚠️ Market data for ${symbol} is not available.`);
+            return;
         }
 
-        await NotifierService.notifyUser(modify, context, message);
+        let message: string;
+        message = marketData.isCrypto
+            ? formatCryptoMessage(marketData)
+            : formatStockMessage(marketData);
+
+        // 2. Fetch Historical Data for Chart
+        let historyData: { date: string, price: number }[] = [];
+
+        try {
+            if (marketData.isCrypto && marketData.sourceId) {
+                // Use the ID we saved earlier! No re-search needed.
+                historyData = await CoinGeckoService.getHistoricalData(marketData.sourceId, 30, http);
+            } else if (!marketData.isCrypto) {
+                // Stocks use the symbol directly
+                historyData = await AlphaVantageService.getHistoricalData(symbol, http, read);
+            }
+        } catch (e) {
+            // If history fails, we just log it and show the text message. Don't crash.
+            console.error("Failed to fetch history:", e);
+        }
+
+        // 3. Generate Chart URL
+        let chartUrl = "";
+        if (historyData.length > 0) {
+            chartUrl = ChartService.getChartUrl(marketData.symbol || symbol, historyData, !!marketData.isCrypto, isDark);
+        }
+
+        // 4. Construct the Message with Attachment
+        const sender = context.getSender();
+        const room = context.getRoom();
+
+        const messageBuilder = modify
+            .getCreator()
+            .startMessage()
+            .setText(message)
+            .setRoom(room)
+            .setSender(sender);
+
+        if (chartUrl) {
+            messageBuilder.addAttachment({
+                imageUrl: chartUrl,
+                title: { value: "30-Day Price Trend" },
+            });
+        }
+
+        await modify
+            .getNotifier()
+            .notifyUser(sender, messageBuilder.getMessage());
     }
 }
