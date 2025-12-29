@@ -71,11 +71,9 @@ export class MarketUpdateCommand implements ISlashCommand {
             return;
         }
 
-        // 1. READ THE THEME SETTING
         const themeSetting = await read.getEnvironmentReader().getSettings().getValueById('chart_theme');
-        const isDark = themeSetting !== 'light'; // Default to Dark if null/undefined
+        const isDark = themeSetting !== 'light'; 
 
-        // 1. Fetch Current Market Data
         const marketData = (await MarketDataService.getMarketData(
             symbol,
             http,
@@ -93,29 +91,22 @@ export class MarketUpdateCommand implements ISlashCommand {
             ? formatCryptoMessage(marketData)
             : formatStockMessage(marketData);
 
-        // 2. Fetch Historical Data for Chart
         let historyData: { date: string, price: number }[] = [];
 
         try {
             if (marketData.isCrypto && marketData.sourceId) {
-                // Use the ID we saved earlier! No re-search needed.
                 historyData = await CoinGeckoService.getHistoricalData(marketData.sourceId, 30, http);
             } else if (!marketData.isCrypto) {
-                // Stocks use the symbol directly
                 historyData = await AlphaVantageService.getHistoricalData(symbol, http, read);
             }
         } catch (e) {
-            // If history fails, we just log it and show the text message. Don't crash.
             console.error("Failed to fetch history:", e);
         }
 
-        // 3. Generate Chart URL
         let chartUrl = "";
         if (historyData.length > 0) {
             chartUrl = ChartService.getChartUrl(marketData.symbol || symbol, historyData, !!marketData.isCrypto, isDark);
         }
-
-        // 4. Construct the Message with Attachment
         const sender = context.getSender();
         const room = context.getRoom();
 
