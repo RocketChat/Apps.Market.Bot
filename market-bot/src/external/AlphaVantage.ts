@@ -1,5 +1,5 @@
-import { IHttp, IRead } from '@rocket.chat/apps-engine/definition/accessors';
-import { ALPHA_VANTAGE_API_KEY_SETTING_ID } from './constants';
+import { IHttp, IRead } from "@rocket.chat/apps-engine/definition/accessors";
+import { ALPHA_VANTAGE_API_KEY_SETTING_ID } from "./constants";
 
 export interface AlphaVantageMarketData {
     symbol: string;
@@ -19,6 +19,25 @@ export interface ITechnicalIndicators {
     rsi?: number;
 }
 
+export interface IOHLCVData {
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
+// Helper function to parse JSON object into OHLCV data
+function parseOHLCV(timeSeries: Record<string, any>): IOHLCVData[] {
+    return Object.entries(timeSeries).map(([date, values]) => ({
+        time: date,
+        open: parseFloat(values["1. open"]),
+        high: parseFloat(values["2. high"]),
+        low: parseFloat(values["3. low"]),
+        close: parseFloat(values["4. close"]),
+        volume: parseInt(values["5. volume"], 10),
+    }));
+}
 // Helper function to fetch indicator values
 async function fetchIndicatorValue(
     http: IHttp,
@@ -132,5 +151,38 @@ export class AlphaVantageService {
         );
 
         return { sma50, sma200, rsi };
+    }
+
+    public static async getOHLCVData(
+        symbol: string,
+        http: IHttp,
+        read: IRead
+    ): Promise<IOHLCVData[] | null> {
+        const apiKey = await read
+            .getEnvironmentReader()
+            .getSettings()
+            .getValueById(ALPHA_VANTAGE_API_KEY_SETTING_ID);
+        if (!apiKey) {
+            throw new Error(
+                "Alpha Vantage API key is not set in app settings."
+            );
+        }
+        const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(
+            symbol
+        )}&apikey=${apiKey}`;
+
+        const response = await http.get(url);
+
+        const data =
+            typeof response.data === "string"
+                ? JSON.parse(response.data)
+                : response.data;
+
+        const timeSeries = data["Time Series (Daily)"];
+        if (!timeSeries) {
+            return null;
+        }
+        const parsedData: IOHLCVData[] = parseOHLCV(timeSeries);
+        return parsedData;
     }
 }

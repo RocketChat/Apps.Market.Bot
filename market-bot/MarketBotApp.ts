@@ -14,6 +14,7 @@ import { AddToWatchlistCommand } from "./src/commands/AddToWatchlistCommand";
 import { ShowWatchlistCommand } from "./src/commands/ShowWatchlistCommand";
 import { RemoveFromWatchlistCommand } from "./src/commands/RemoveFromWatchlistCommand";
 import { MarketUpdateCommand } from "./src/commands/MarketUpdateCommand";
+import { GraphsCommand } from "./src/commands/GraphCommand";
 
 export class MarketBotApp extends App {
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
@@ -38,6 +39,9 @@ export class MarketBotApp extends App {
         );
         await configuration.slashCommands.provideSlashCommand(
             new RemoveFromWatchlistCommand()
+        );
+        await configuration.slashCommands.provideSlashCommand(
+            new GraphsCommand()
         );
 
         await configuration.settings.provideSetting({
