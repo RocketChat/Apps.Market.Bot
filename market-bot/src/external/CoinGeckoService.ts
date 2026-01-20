@@ -31,7 +31,7 @@ export class CoinGeckoService {
 
     static async getMarketData(
         coinId: string,
-        http: IHttp
+        http: IHttp,
     ): Promise<ICoinGeckoMarketData | undefined> {
         const url = `${
             this.BASE_URL
@@ -51,10 +51,10 @@ export class CoinGeckoService {
 
     static async searchCoins(
         query: string,
-        http: IHttp
+        http: IHttp,
     ): Promise<Array<{ id: string; symbol: string; name: string }>> {
         const url = `${this.BASE_URL}/search?query=${encodeURIComponent(
-            query
+            query,
         )}`;
         const response = await http.get(url);
 
@@ -71,7 +71,7 @@ export class CoinGeckoService {
 
     static async getCoinGeckoOHLC(
         coinId: string,
-        http: IHttp
+        http: IHttp,
     ): Promise<IOHLCVData[] | null> {
         try {
             const url =

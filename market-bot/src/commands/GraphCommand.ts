@@ -34,7 +34,7 @@ export class GraphsCommand implements ISlashCommand {
         context: SlashCommandContext,
         read: IRead,
         modify: IModify,
-        http: IHttp
+        http: IHttp,
     ): Promise<void> {
         const [tickerRaw] = context.getArguments();
         const room = context.getRoom();
@@ -44,13 +44,14 @@ export class GraphsCommand implements ISlashCommand {
             return NotifierService.notifyUser(
                 modify,
                 context,
-                "⚠️ Usage: `/graphs <TICKER>` (examples: `/graphs AAPL`, `/graphs BTC`)"
+                "⚠️ Usage: `/graphs <TICKER>` (examples: `/graphs AAPL`, `/graphs BTC`)",
             );
         }
 
         const ticker = tickerRaw.toUpperCase();
         let OHLCVData: IOHLCVData[] | null = null;
         let dataSource = "";
+        let chartTitle = "";
 
         const coinGeckoId = GraphsCommand.COINGECKO_MAP[ticker];
         if (coinGeckoId) {
@@ -58,27 +59,29 @@ export class GraphsCommand implements ISlashCommand {
             console.log("[COINGECKO] Fetching OHLC for:", ticker);
             OHLCVData = await CoinGeckoService.getCoinGeckoOHLC(
                 coinGeckoId,
-                http
+                http,
             );
+            chartTitle = `${ticker} - Last 30 trading days (4 hours OHLC)`;
         } else {
             dataSource = "AlphaVantage";
             console.log("[ALPHAVANTAGE] Fetching OHLC for:", ticker);
             OHLCVData = await AlphaVantageService.getOHLCVData(
                 ticker,
                 http,
-                read
+                read,
             );
+            chartTitle = `${ticker} - Last 30 trading days (Daily OHLC)`;
         }
 
         if (!OHLCVData || OHLCVData.length === 0) {
             return NotifierService.notifyUser(
                 modify,
                 context,
-                `❌ No OHLCV data available for *${ticker}*`
+                `❌ No OHLCV data available for *${ticker}*`,
             );
         }
 
-        const chartUrl = this.createChartUrl(OHLCVData, ticker);
+        const chartUrl = this.createChartUrl(OHLCVData, ticker, chartTitle);
 
         const attachment: IMessageAttachment = {
             title: { value: `${ticker} Chart` },
@@ -90,13 +93,17 @@ export class GraphsCommand implements ISlashCommand {
             .startMessage()
             .setSender(sender)
             .setRoom(room)
-            .setText(`📈 OHLCV chart for *${ticker}*`)
+            .setText(`📈 OHLC chart for *${ticker}*`)
             .addAttachment(attachment);
 
         await modify.getCreator().finish(chartMessage);
     }
 
-    private createChartUrl(data: IOHLCVData[], ticker: string): string {
+    private createChartUrl(
+        data: IOHLCVData[],
+        ticker: string,
+        chartTitle: string,
+    ): string {
         const dataset = data.map((d) => ({
             // x: d.time,
             x: typeof d.time === "string" ? new Date(d.time).getTime() : d.time,
@@ -126,7 +133,7 @@ export class GraphsCommand implements ISlashCommand {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: `${ticker} - Last ${dataset.length} intervals`,
+                        text: chartTitle,
                     },
                 },
                 scales: {

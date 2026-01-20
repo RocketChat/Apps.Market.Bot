@@ -43,7 +43,7 @@ async function fetchIndicatorValue(
     http: IHttp,
     url: string,
     analysisKey: string,
-    valueKey: string
+    valueKey: string,
 ): Promise<number | undefined> {
     const response = await http.get(url);
     if (
@@ -63,7 +63,7 @@ export class AlphaVantageService {
     public static async getMarketData(
         symbol: string,
         http: IHttp,
-        read: IRead
+        read: IRead,
     ): Promise<AlphaVantageMarketData | null> {
         const apiKey = await read
             .getEnvironmentReader()
@@ -71,12 +71,12 @@ export class AlphaVantageService {
             .getValueById(ALPHA_VANTAGE_API_KEY_SETTING_ID);
         if (!apiKey) {
             throw new Error(
-                "Alpha Vantage API key is not set in app settings."
+                "Alpha Vantage API key is not set in app settings.",
             );
         }
 
         const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(
-            symbol
+            symbol,
         )}&apikey=${apiKey}`;
         const response = await http.get(url);
 
@@ -105,7 +105,7 @@ export class AlphaVantageService {
     public static async getTechnicalIndicators(
         symbol: string,
         http: IHttp,
-        read: IRead
+        read: IRead,
     ): Promise<ITechnicalIndicators | null> {
         const apiKey = await read
             .getEnvironmentReader()
@@ -113,41 +113,41 @@ export class AlphaVantageService {
             .getValueById(ALPHA_VANTAGE_API_KEY_SETTING_ID);
         if (!apiKey) {
             throw new Error(
-                "Alpha Vantage API key is not set in app settings."
+                "Alpha Vantage API key is not set in app settings.",
             );
         }
 
         // SMA 50
         const sma50Url = `https://www.alphavantage.co/query?function=SMA&symbol=${encodeURIComponent(
-            symbol
+            symbol,
         )}&interval=daily&time_period=50&series_type=close&apikey=${apiKey}`;
         const sma50 = await fetchIndicatorValue(
             http,
             sma50Url,
             "Technical Analysis: SMA",
-            "SMA"
+            "SMA",
         );
 
         // SMA 200
         const sma200Url = `https://www.alphavantage.co/query?function=SMA&symbol=${encodeURIComponent(
-            symbol
+            symbol,
         )}&interval=daily&time_period=200&series_type=close&apikey=${apiKey}`;
         const sma200 = await fetchIndicatorValue(
             http,
             sma200Url,
             "Technical Analysis: SMA",
-            "SMA"
+            "SMA",
         );
 
         // RSI
         const rsiUrl = `https://www.alphavantage.co/query?function=RSI&symbol=${encodeURIComponent(
-            symbol
+            symbol,
         )}&interval=daily&time_period=14&series_type=close&apikey=${apiKey}`;
         const rsi = await fetchIndicatorValue(
             http,
             rsiUrl,
             "Technical Analysis: RSI",
-            "RSI"
+            "RSI",
         );
 
         return { sma50, sma200, rsi };
@@ -156,7 +156,7 @@ export class AlphaVantageService {
     public static async getOHLCVData(
         symbol: string,
         http: IHttp,
-        read: IRead
+        read: IRead,
     ): Promise<IOHLCVData[] | null> {
         const apiKey = await read
             .getEnvironmentReader()
@@ -164,11 +164,11 @@ export class AlphaVantageService {
             .getValueById(ALPHA_VANTAGE_API_KEY_SETTING_ID);
         if (!apiKey) {
             throw new Error(
-                "Alpha Vantage API key is not set in app settings."
+                "Alpha Vantage API key is not set in app settings.",
             );
         }
         const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(
-            symbol
+            symbol,
         )}&apikey=${apiKey}`;
 
         const response = await http.get(url);
@@ -183,6 +183,13 @@ export class AlphaVantageService {
             return null;
         }
         const parsedData: IOHLCVData[] = parseOHLCV(timeSeries);
-        return parsedData;
+
+        parsedData.sort(
+            (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+        );
+
+        const last30Days = parsedData.slice(0, 30);
+
+        return last30Days.reverse();
     }
 }
